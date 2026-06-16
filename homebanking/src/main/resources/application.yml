@@ -18,10 +18,14 @@ jwt:
 # URLs de los servicios internos (sobreescritas por variables de entorno Docker)
 # ──────────────────────────────────────────────────────────────────────────────
 banking:
-  # URL del Core Banking al que está asociado este Home Banking
-  core-bank-url: ${CORE_BANK_URL:http://bank-a:8080}
+  # URL del Core Banking de este banco. En Docker apunta al gateway (core-gateway),
+  # único componente autorizado a alcanzar el Core directamente.
+  core-bank-url: ${CORE_BANK_URL:http://core-gateway:8080}
   # URL del Banking Switch para consulta de bancos disponibles
   switch-url: ${SWITCH_URL:http://banking-switch:8090}
+  # Token de servicio (API key) para identificarse ante el Core Banking.
+  # Debe coincidir con banking.service-token del Core. En Docker => SERVICE_TOKEN.
+  service-token: ${SERVICE_TOKEN:c2VydmljZS10b2tlbi1ob21lYmFua2luZy10by1jb3JlLTIwMjY=}
 
 management:
   endpoints:

@@ -48,6 +48,11 @@ banking:
   bank-name: ${BANK_NAME:Banco Alpha}       # Nombre descriptivo
   account-prefix: ${ACCOUNT_PREFIX:ACC}     # Prefijo del número de cuenta
 
+  # Token de servicio (API key) que el Home Banking debe enviar en la cabecera
+  # X-Service-Token para invocar los endpoints /api/**. Si queda vacío no se
+  # exige (modo desarrollo). En Docker/producción se inyecta vía SERVICE_TOKEN.
+  service-token: ${SERVICE_TOKEN:c2VydmljZS10b2tlbi1ob21lYmFua2luZy10by1jb3JlLTIwMjY=}
+
   kafka:
     topics:
       # Topic donde este banco recibe transferencias del Switch
