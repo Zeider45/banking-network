@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <springProperty scope="context" name="bankCode" source="banking.bank-code" defaultValue="BANK"/>
+    <springProperty scope="context" name="appName" source="spring.application.name" defaultValue="core-banking"/>
+
+    <!--
+        Leer LOKI_URL desde la variable de entorno del sistema operativo.
+        Logback usa ${env.NOMBRE:-default} para leer env vars con valor por defecto.
+        NO usar sintaxis de Spring ${VAR:default} aquí — Logback la interpreta
+        literalmente como nombre de variable y falla.
+    -->
+    <property name="lokiUrl" value="${env.LOKI_URL:-http://loki:3100}"/>
+
+    <!-- Appender: Consola -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %highlight(%-5level) [%cyan(${bankCode})] [%thread] %logger{35} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Appender: Loki (logs centralizados para Grafana) -->
+    <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
+        <http>
+            <url>${lokiUrl}/loki/api/v1/push</url>
+        </http>
+        <format>
+            <label>
+                <pattern>app=${appName},bank=${bankCode},level=%level,host=${HOSTNAME}</pattern>
+                <readMarkers>true</readMarkers>
+            </label>
+            <message>
+                <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [${bankCode}] %logger{35} - %msg%n</pattern>
+            </message>
+            <sortByTime>true</sortByTime>
+        </format>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="LOKI"/>
+    </root>
+
+    <logger name="com.banking" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="LOKI"/>
+    </logger>
+
+</configuration>

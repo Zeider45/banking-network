@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: homebanking
+
+server:
+  port: ${SERVER_PORT:8100}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# JWT: clave secreta y duración del token
+# En producción la clave debe ser de al menos 256 bits y almacenarse en un vault
+# ──────────────────────────────────────────────────────────────────────────────
+jwt:
+  # Clave Base64 de 64 bytes (512 bits) - sobreescrita por variable de entorno
+  secret: ${JWT_SECRET:bXlfc3VwZXJfc2VjcmV0X2tleV9mb3JfYmFua2luZ19uZXR3b3JrXzIwMjRfYWJjZGVmZ2hpamtsbW5vcA==}
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000}  # 24 horas
+
+# ──────────────────────────────────────────────────────────────────────────────
+# URLs de los servicios internos (sobreescritas por variables de entorno Docker)
+# ──────────────────────────────────────────────────────────────────────────────
+banking:
+  # URL del Core Banking al que está asociado este Home Banking
+  core-bank-url: ${CORE_BANK_URL:http://bank-a:8080}
+  # URL del Banking Switch para consulta de bancos disponibles
+  switch-url: ${SWITCH_URL:http://banking-switch:8090}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  metrics:
+    tags:
+      application: homebanking
+
+logging:
+  level:
+    com.banking: INFO
+    org.springframework.web.reactive: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [HOMEBANKING] %logger{35} - %msg%n"

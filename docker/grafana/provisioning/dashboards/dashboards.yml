@@ -1,0 +1,18 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Grafana: proveedor de dashboards desde archivos JSON
+# Grafana cargará automáticamente todos los .json en el directorio configurado
+# ─────────────────────────────────────────────────────────────────────────────
+
+apiVersion: 1
+
+providers:
+  - name: 'Banking Network'
+    orgId: 1
+    folder: 'Banking'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: false

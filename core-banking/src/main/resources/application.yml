@@ -1,0 +1,90 @@
+spring:
+  application:
+    name: core-banking
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Base de datos: agnóstica al motor (PostgreSQL o MariaDB).
+  #
+  # El driver y el dialecto de Hibernate 6 se auto-detectan desde la URL:
+  #   jdbc:postgresql://...  →  driver PostgreSQL  +  dialecto PostgreSQL
+  #   jdbc:mariadb://...     →  driver MariaDB     +  dialecto MariaDB
+  #
+  # Solo hay que cambiar DB_URL en las variables de entorno de cada banco.
+  # ──────────────────────────────────────────────────────────────────────────
+  datasource:
+    # Default: PostgreSQL para desarrollo local. En Docker se sobreescribe.
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/bankdb}
+    username: ${DB_USER:banking}
+    password: ${DB_PASS:banking123}
+    # driver-class-name NO se especifica: Spring Boot lo infiere desde la URL
+    hikari:
+      pool-name: CoreBankingPool
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: update          # Crea/actualiza tablas automáticamente
+    show-sql: false             # true para depuración local
+    open-in-view: false         # Evita N+1 queries inesperadas
+    properties:
+      hibernate:
+        # dialect NO se especifica: Hibernate 6 lo infiere desde la conexión JDBC.
+        # Funciona correctamente con PostgreSQL, MariaDB y MySQL sin cambios.
+        format_sql: true
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Kafka
+  # ──────────────────────────────────────────────────────────────────────────
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
+
+# ────────────────────────────────────────────────────────────────────────────
+# Propiedades propias del banco (variables de entorno para cada instancia)
+# ────────────────────────────────────────────────────────────────────────────
+banking:
+  bank-code: ${BANK_CODE:BANKA}             # Identificador único del banco
+  bank-name: ${BANK_NAME:Banco Alpha}       # Nombre descriptivo
+  account-prefix: ${ACCOUNT_PREFIX:ACC}     # Prefijo del número de cuenta
+
+  kafka:
+    topics:
+      # Topic donde este banco recibe transferencias del Switch
+      incoming: ${KAFKA_TOPIC_INCOMING:bank.BANKA.incoming}
+      # Topic donde publica transferencias salientes al Switch
+      outgoing: ${KAFKA_TOPIC_OUTGOING:switch.transfers}
+
+# ────────────────────────────────────────────────────────────────────────────
+# Servidor
+# ────────────────────────────────────────────────────────────────────────────
+server:
+  port: ${SERVER_PORT:8080}
+
+# ────────────────────────────────────────────────────────────────────────────
+# Actuator: expone métricas para Prometheus
+# ────────────────────────────────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      # Etiqueta el banco en cada métrica para distinguir instancias en Grafana
+      bank: ${BANK_CODE:BANKA}
+      application: core-banking
+
+# ────────────────────────────────────────────────────────────────────────────
+# Logging
+# ────────────────────────────────────────────────────────────────────────────
+logging:
+  level:
+    com.banking: INFO
+    org.springframework.kafka: WARN
+    org.hibernate.SQL: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level [${BANK_CODE:BANKA}] %logger{36} - %msg%n"

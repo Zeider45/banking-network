@@ -1,0 +1,68 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Configuración de Prometheus
+# Scrapeará métricas de todos los servicios de la red bancaria cada 15 segundos
+# ─────────────────────────────────────────────────────────────────────────────
+
+global:
+  scrape_interval: 15s          # Con qué frecuencia recolectar métricas
+  evaluation_interval: 15s      # Con qué frecuencia evaluar reglas de alerta
+
+scrape_configs:
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Banco A (Core Banking - instancia BANKA)
+  # ──────────────────────────────────────────────────────────────────────────
+  - job_name: 'bank-a'
+    static_configs:
+      - targets: ['bank-a:8080']
+    metrics_path: /actuator/prometheus
+    scrape_interval: 10s
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Banco B (Core Banking - instancia BANKB / MariaDB)
+  # ──────────────────────────────────────────────────────────────────────────
+  - job_name: 'bank-b'
+    static_configs:
+      - targets: ['bank-b:8081']
+    metrics_path: /actuator/prometheus
+    scrape_interval: 10s
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Banco C (Core Banking - instancia BANKC / MariaDB)
+  # ──────────────────────────────────────────────────────────────────────────
+  - job_name: 'bank-c'
+    static_configs:
+      - targets: ['bank-c:8082']
+    metrics_path: /actuator/prometheus
+    scrape_interval: 10s
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Banking Switch
+  # ──────────────────────────────────────────────────────────────────────────
+  - job_name: 'banking-switch'
+    static_configs:
+      - targets: ['banking-switch:8090']
+    metrics_path: /actuator/prometheus
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Home Banking — un portal por banco
+  # ──────────────────────────────────────────────────────────────────────────
+  - job_name: 'homebanking-a'
+    static_configs:
+      - targets: ['homebanking-a:8100']
+    metrics_path: /actuator/prometheus
+
+  - job_name: 'homebanking-b'
+    static_configs:
+      - targets: ['homebanking-b:8101']
+    metrics_path: /actuator/prometheus
+
+  - job_name: 'homebanking-c'
+    static_configs:
+      - targets: ['homebanking-c:8102']
+    metrics_path: /actuator/prometheus
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Kafka (a través de JMX Exporter si se configura)
+  # Por ahora monitoreamos vía las métricas de Spring Kafka en los servicios
+  # ──────────────────────────────────────────────────────────────────────────

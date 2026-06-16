@@ -1,0 +1,539 @@
+################################################################################
+# BANKING NETWORK - Docker Compose
+#
+# Arquitectura:
+#  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+#  │   bank-a     │    │   bank-b     │    │   bank-c     │  Core Banking
+#  │  (BANKA)     │    │  (BANKB)     │    │  (BANKC)     │  (replicable)
+#  │  PostgreSQL  │    │  MariaDB     │    │  MariaDB     │
+#  └──────┬───────┘    └──────┬───────┘    └──────┬───────┘
+#         │                   │ Kafka              │ Kafka
+#         └───────────────────┼────────────────────┘
+#                             │
+#                    ┌────────▼───────┐
+#                    │  banking-switch │  Enrutador interbancario
+#                    └────────┬───────┘
+#                             │ REST
+#                    ┌────────▼───────┐
+#                    │  homebanking   │  Portal REST para usuarios
+#                    └────────────────┘
+#
+# Bases de datos:
+#   bank-a → PostgreSQL 16  (postgres-bank-a :5432)
+#   bank-b → MariaDB 11.4   (mariadb-bank-b  :3306)
+#   bank-c → MariaDB 11.4   (mariadb-bank-c  :3307)
+#
+# El mismo core-banking.jar soporta ambos motores: Hibernate 6 auto-detecta
+# el driver y el dialecto desde la JDBC URL (jdbc:postgresql:// o jdbc:mariadb://)
+#
+# Monitoreo: Kafka → Zookeeper | Prometheus + Grafana + Loki
+#
+# Para levantar todo:  docker compose up --build
+# Para detener todo:   docker compose down -v
+################################################################################
+
+services:
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # INFRAESTRUCTURA BASE
+  # ────────────────────────────────────────────────────────────────────────────
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - banking-net
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo ruok | nc localhost 2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"       # Acceso interno Docker
+      - "29092:29092"     # Acceso desde el host (para herramientas externas)
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"  # Crea topics automáticamente al primer mensaje
+      KAFKA_LOG_RETENTION_HOURS: 168           # Retiene logs por 7 días
+    networks:
+      - banking-net
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # Kafka UI: interfaz web para inspeccionar topics y mensajes
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8180:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: banking-kafka
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - banking-net
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # BASES DE DATOS
+  #   bank-a  →  PostgreSQL 16   (motor relacional robusto para producción)
+  #   bank-b  →  MariaDB 11.4    (alternativa compatible MySQL, muy usada en banca)
+  #   bank-c  →  MariaDB 11.4    (segunda instancia MariaDB = tercer banco)
+  #
+  # Cada banco tiene su propio servidor de base de datos completamente aislado.
+  # El core-banking usa el mismo código para los tres: solo cambia la JDBC URL.
+  # ────────────────────────────────────────────────────────────────────────────
+
+  # ── PostgreSQL para Banco A ────────────────────────────────────────────────
+  postgres-bank-a:
+    image: postgres:16-alpine
+    container_name: postgres-bank-a
+    environment:
+      POSTGRES_DB: bankdb_a
+      POSTGRES_USER: banking
+      POSTGRES_PASSWORD: banking123
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata-bank-a:/var/lib/postgresql/data
+    networks:
+      - banking-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U banking -d bankdb_a"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── MariaDB para Banco B ───────────────────────────────────────────────────
+  mariadb-bank-b:
+    image: mariadb:11.4
+    container_name: mariadb-bank-b
+    environment:
+      MARIADB_ROOT_PASSWORD: rootbanking123
+      MARIADB_DATABASE: bankdb_b
+      MARIADB_USER: banking
+      MARIADB_PASSWORD: banking123
+      # Charset UTF-8 completo para soportar caracteres especiales
+      MARIADB_CHARACTER_SET_SERVER: utf8mb4
+      MARIADB_COLLATION_SERVER: utf8mb4_unicode_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb-bank-b:/var/lib/mysql
+    networks:
+      - banking-net
+    healthcheck:
+      # healthcheck.sh es el script oficial de MariaDB para contenedores
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ── MariaDB para Banco C ───────────────────────────────────────────────────
+  mariadb-bank-c:
+    image: mariadb:11.4
+    container_name: mariadb-bank-c
+    environment:
+      MARIADB_ROOT_PASSWORD: rootbanking123
+      MARIADB_DATABASE: bankdb_c
+      MARIADB_USER: banking
+      MARIADB_PASSWORD: banking123
+      MARIADB_CHARACTER_SET_SERVER: utf8mb4
+      MARIADB_COLLATION_SERVER: utf8mb4_unicode_ci
+    ports:
+      - "3307:3306"
+    volumes:
+      - mariadb-bank-c:/var/lib/mysql
+    networks:
+      - banking-net
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # CORE BANKING — Instancia Banco A
+  # Variables de entorno parametrizan la identidad del banco
+  # ────────────────────────────────────────────────────────────────────────────
+
+  bank-a:
+    build:
+      context: ./core-banking
+      dockerfile: Dockerfile
+    container_name: bank-a
+    depends_on:
+      postgres-bank-a:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      # Identidad del banco
+      BANK_CODE: BANKA
+      BANK_NAME: "Banco Alpha"
+      ACCOUNT_PREFIX: ACC
+
+      # Base de datos de Banco A
+      DB_URL: jdbc:postgresql://postgres-bank-a:5432/bankdb_a
+      DB_USER: banking
+      DB_PASS: banking123
+
+      # Kafka
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_TOPIC_INCOMING: bank.BANKA.incoming  # Topic donde recibe transferencias
+      KAFKA_TOPIC_OUTGOING: switch.transfers      # Topic donde envía al Switch
+
+      # Logs
+      LOKI_URL: http://loki:3100
+      SERVER_PORT: 8080
+    ports:
+      - "8080:8080"
+    networks:
+      - banking-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # CORE BANKING — Instancia Banco B  (usa MariaDB)
+  # El mismo imagen del core-banking, solo cambia la JDBC URL → MariaDB
+  # Hibernate 6 detecta automáticamente: driver mariadb-java-client + dialecto MariaDB
+  # ────────────────────────────────────────────────────────────────────────────
+
+  bank-b:
+    build:
+      context: ./core-banking
+      dockerfile: Dockerfile
+    container_name: bank-b
+    depends_on:
+      mariadb-bank-b:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      BANK_CODE: BANKB
+      BANK_NAME: "Banco Beta"
+      ACCOUNT_PREFIX: ACC
+
+      # URL MariaDB: Hibernate infiere driver org.mariadb.jdbc.Driver
+      # y dialecto MariaDBDialect automáticamente desde el prefijo jdbc:mariadb://
+      DB_URL: jdbc:mariadb://mariadb-bank-b:3306/bankdb_b?useUnicode=true&characterEncoding=UTF-8
+      DB_USER: banking
+      DB_PASS: banking123
+
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_TOPIC_INCOMING: bank.BANKB.incoming
+      KAFKA_TOPIC_OUTGOING: switch.transfers
+
+      LOKI_URL: http://loki:3100
+      SERVER_PORT: 8081
+    ports:
+      - "8081:8081"
+    networks:
+      - banking-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # CORE BANKING — Instancia Banco C  (también MariaDB)
+  # Demuestra que se pueden agregar bancos indefinidamente
+  # ────────────────────────────────────────────────────────────────────────────
+
+  bank-c:
+    build:
+      context: ./core-banking
+      dockerfile: Dockerfile
+    container_name: bank-c
+    depends_on:
+      mariadb-bank-c:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      BANK_CODE: BANKC
+      BANK_NAME: "Banco Gamma"
+      ACCOUNT_PREFIX: ACC
+
+      DB_URL: jdbc:mariadb://mariadb-bank-c:3306/bankdb_c?useUnicode=true&characterEncoding=UTF-8
+      DB_USER: banking
+      DB_PASS: banking123
+
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_TOPIC_INCOMING: bank.BANKC.incoming
+      KAFKA_TOPIC_OUTGOING: switch.transfers
+
+      LOKI_URL: http://loki:3100
+      SERVER_PORT: 8082
+    ports:
+      - "8082:8082"
+    networks:
+      - banking-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # BANKING SWITCH — Enrutador interbancario
+  # ────────────────────────────────────────────────────────────────────────────
+
+  banking-switch:
+    build:
+      context: ./banking-switch
+      dockerfile: Dockerfile
+    container_name: banking-switch
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_TOPIC_INCOMING: switch.transfers          # Escucha este topic
+      REGISTERED_BANKS: BANKA,BANKB,BANKC             # Los 3 bancos registrados
+      LOKI_URL: http://loki:3100
+      SERVER_PORT: 8090
+    ports:
+      - "8090:8090"
+    networks:
+      - banking-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8090/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # HOME BANKING — Un portal por banco
+  #
+  # Cada instancia es el mismo código (homebanking/) con distinta configuración.
+  # El usuario accede al portal de SU banco y nunca ve los datos de otros bancos.
+  # Las transferencias interbancarias se inician desde el portal propio y viajan
+  # por Kafka via el Banking Switch al banco destino.
+  #
+  #   homebanking-a :8100  →  Banco Alpha  (PostgreSQL)
+  #   homebanking-b :8101  →  Banco Beta   (MariaDB)
+  #   homebanking-c :8102  →  Banco Gamma  (MariaDB)
+  # ────────────────────────────────────────────────────────────────────────────
+
+  homebanking-a:
+    build:
+      context: ./homebanking
+      dockerfile: Dockerfile
+    container_name: homebanking-a
+    depends_on:
+      bank-a:
+        condition: service_healthy
+      banking-switch:
+        condition: service_healthy
+    environment:
+      CORE_BANK_URL: http://bank-a:8080          # Apunta exclusivamente a Banco A
+      SWITCH_URL: http://banking-switch:8090
+      JWT_SECRET: bXlfc3VwZXJfc2VjcmV0X2tleV9mb3JfYmFua2luZ19uZXR3b3JrXzIwMjRfYWJjZGVmZ2hpamtsbW5vcA==
+      JWT_EXPIRATION_MS: 86400000
+      LOKI_URL: http://loki:3100
+      SERVER_PORT: 8100
+    ports:
+      - "8100:8100"
+    networks:
+      - banking-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8100/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  homebanking-b:
+    build:
+      context: ./homebanking
+      dockerfile: Dockerfile
+    container_name: homebanking-b
+    depends_on:
+      bank-b:
+        condition: service_healthy
+      banking-switch:
+        condition: service_healthy
+    environment:
+      CORE_BANK_URL: http://bank-b:8081          # Apunta exclusivamente a Banco B
+      SWITCH_URL: http://banking-switch:8090
+      JWT_SECRET: bXlfc3VwZXJfc2VjcmV0X2tleV9mb3JfYmFua2luZ19uZXR3b3JrXzIwMjRfYWJjZGVmZ2hpamtsbW5vcA==
+      JWT_EXPIRATION_MS: 86400000
+      LOKI_URL: http://loki:3100
+      SERVER_PORT: 8101
+    ports:
+      - "8101:8101"
+    networks:
+      - banking-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8101/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  homebanking-c:
+    build:
+      context: ./homebanking
+      dockerfile: Dockerfile
+    container_name: homebanking-c
+    depends_on:
+      bank-c:
+        condition: service_healthy
+      banking-switch:
+        condition: service_healthy
+    environment:
+      CORE_BANK_URL: http://bank-c:8082          # Apunta exclusivamente a Banco C
+      SWITCH_URL: http://banking-switch:8090
+      JWT_SECRET: bXlfc3VwZXJfc2VjcmV0X2tleV9mb3JfYmFua2luZ19uZXR3b3JrXzIwMjRfYWJjZGVmZ2hpamtsbW5vcA==
+      JWT_EXPIRATION_MS: 86400000
+      LOKI_URL: http://loki:3100
+      SERVER_PORT: 8102
+    ports:
+      - "8102:8102"
+    networks:
+      - banking-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8102/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # MONITOREO — Prometheus
+  # ────────────────────────────────────────────────────────────────────────────
+
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: prometheus
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'   # Retiene métricas 15 días
+      - '--web.enable-lifecycle'               # Permite recargar config vía API
+    ports:
+      - "9090:9090"
+    networks:
+      - banking-net
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # MONITOREO — Loki (centralización de logs)
+  # ────────────────────────────────────────────────────────────────────────────
+
+  loki:
+    image: grafana/loki:3.0.0
+    container_name: loki
+    # root: los volúmenes Docker se crean con permisos root; Loki (uid 10001)
+    # no puede escribir en ellos por defecto. En dev corremos como root.
+    user: root
+    volumes:
+      - ./docker/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100"
+    networks:
+      - banking-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3100/ready | grep -q 'ready'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # MONITOREO — Grafana (dashboards)
+  # ────────────────────────────────────────────────────────────────────────────
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: grafana
+    depends_on:
+      prometheus:
+        condition: service_started
+      loki:
+        condition: service_healthy
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: banking123
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: http://localhost:3000
+      # Instala el plugin de Loki automáticamente
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    networks:
+      - banking-net
+
+# ──────────────────────────────────────────────────────────────────────────────
+# REDES
+# ──────────────────────────────────────────────────────────────────────────────
+
+networks:
+  banking-net:
+    driver: bridge
+    name: banking-network
+
+# ──────────────────────────────────────────────────────────────────────────────
+# VOLÚMENES PERSISTENTES
+# ──────────────────────────────────────────────────────────────────────────────
+
+volumes:
+  # PostgreSQL (Banco A)
+  pgdata-bank-a:
+    name: banking_pgdata_banka
+
+  # MariaDB (Banco B y C)
+  mariadb-bank-b:
+    name: banking_mariadb_bankb
+  mariadb-bank-c:
+    name: banking_mariadb_bankc
+
+  # Monitoreo
+  prometheus-data:
+    name: banking_prometheus_data
+  grafana-data:
+    name: banking_grafana_data
+  loki-data:
+    name: banking_loki_data

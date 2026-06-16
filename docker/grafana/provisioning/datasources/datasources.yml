@@ -1,0 +1,29 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Grafana: fuentes de datos pre-configuradas
+# Se aplican automáticamente al iniciar Grafana (sin configuración manual)
+# ─────────────────────────────────────────────────────────────────────────────
+
+apiVersion: 1
+
+datasources:
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Prometheus: fuente de métricas (tiempos de respuesta, contadores, etc.)
+  # ──────────────────────────────────────────────────────────────────────────
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    jsonData:
+      timeInterval: "15s"
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Loki: fuente de logs (logs centralizados de todos los servicios)
+  # ──────────────────────────────────────────────────────────────────────────
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    jsonData:
+      maxLines: 1000

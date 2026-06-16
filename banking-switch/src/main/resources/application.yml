@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: banking-switch
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
+
+banking:
+  # Lista de bancos que el Switch reconoce (separados por coma)
+  registered-banks: ${REGISTERED_BANKS:BANKA,BANKB}
+
+  kafka:
+    topics:
+      # Topic donde todos los bancos publican transferencias salientes
+      incoming: ${KAFKA_TOPIC_INCOMING:switch.transfers}
+
+server:
+  port: ${SERVER_PORT:8090}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  metrics:
+    tags:
+      application: banking-switch
+
+logging:
+  level:
+    com.banking: INFO
+    org.springframework.kafka: WARN
