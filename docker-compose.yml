@@ -75,6 +75,7 @@ services:
       KAFKA_LOG_RETENTION_HOURS: 168           # Retiene logs por 7 días
     networks:
       - banking-net
+      - core-net                               # Los Core (en core-net) producen/consumen aquí
     healthcheck:
       test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
       interval: 15s
@@ -121,6 +122,7 @@ services:
     volumes:
       - pgdata-bank-a:/var/lib/postgresql/data
     networks:
+      - core-net
       - banking-net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U banking -d bankdb_a"]
@@ -145,6 +147,7 @@ services:
     volumes:
       - mariadb-bank-b:/var/lib/mysql
     networks:
+      - core-net
       - banking-net
     healthcheck:
       # healthcheck.sh es el script oficial de MariaDB para contenedores
@@ -170,6 +173,7 @@ services:
     volumes:
       - mariadb-bank-c:/var/lib/mysql
     networks:
+      - core-net
       - banking-net
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
@@ -209,13 +213,16 @@ services:
       KAFKA_TOPIC_INCOMING: bank.BANKA.incoming  # Topic donde recibe transferencias
       KAFKA_TOPIC_OUTGOING: switch.transfers      # Topic donde envía al Switch
 
+      # Token de servicio: el Home Banking debe presentarlo (X-Service-Token)
+      SERVICE_TOKEN: ${SERVICE_TOKEN:-c2VydmljZS10b2tlbi1ob21lYmFua2luZy10by1jb3JlLTIwMjY=}
+
       # Logs
       LOKI_URL: http://loki:3100
       SERVER_PORT: 8080
-    ports:
-      - "8080:8080"
+    # Sin `ports:` — el Core es interno y NO se publica al host.
+    # Solo vive en `core-net`, así únicamente el gateway puede alcanzarlo.
     networks:
-      - banking-net
+      - core-net
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"'"]
       interval: 20s
@@ -254,12 +261,13 @@ services:
       KAFKA_TOPIC_INCOMING: bank.BANKB.incoming
       KAFKA_TOPIC_OUTGOING: switch.transfers
 
+      SERVICE_TOKEN: ${SERVICE_TOKEN:-c2VydmljZS10b2tlbi1ob21lYmFua2luZy10by1jb3JlLTIwMjY=}
+
       LOKI_URL: http://loki:3100
       SERVER_PORT: 8081
-    ports:
-      - "8081:8081"
+    # Sin `ports:` — Core interno, solo alcanzable por el gateway vía core-net.
     networks:
-      - banking-net
+      - core-net
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health | grep -q '\"status\":\"UP\"'"]
       interval: 20s
@@ -295,12 +303,13 @@ services:
       KAFKA_TOPIC_INCOMING: bank.BANKC.incoming
       KAFKA_TOPIC_OUTGOING: switch.transfers
 
+      SERVICE_TOKEN: ${SERVICE_TOKEN:-c2VydmljZS10b2tlbi1ob21lYmFua2luZy10by1jb3JlLTIwMjY=}
+
       LOKI_URL: http://loki:3100
       SERVER_PORT: 8082
-    ports:
-      - "8082:8082"
+    # Sin `ports:` — Core interno, solo alcanzable por el gateway vía core-net.
     networks:
-      - banking-net
+      - core-net
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health | grep -q '\"status\":\"UP\"'"]
       interval: 20s
@@ -338,6 +347,41 @@ services:
       start_period: 30s
 
   # ────────────────────────────────────────────────────────────────────────────
+  # CORE GATEWAY — Reverse proxy delante del Core Banking
+  #
+  # Único componente que puede alcanzar las instancias del Core (bank-a/b/c).
+  # Está en `core-net` (junto a los Core) y en `banking-net` (donde lo ven los
+  # Home Banking). Los Core NO están en `banking-net`, así que el único camino
+  # del Home Banking hacia el Core es a través de este gateway.
+  #
+  #   core-gateway:8080  →  bank-a:8080
+  #   core-gateway:8081  →  bank-b:8081
+  #   core-gateway:8082  →  bank-c:8082
+  # ────────────────────────────────────────────────────────────────────────────
+
+  core-gateway:
+    image: nginx:1.27-alpine
+    container_name: core-gateway
+    depends_on:
+      bank-a:
+        condition: service_healthy
+      bank-b:
+        condition: service_healthy
+      bank-c:
+        condition: service_healthy
+    volumes:
+      - ./docker/gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - core-net       # Lado interno: alcanza a los Core
+      - banking-net    # Lado expuesto: lo consumen los Home Banking
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ────────────────────────────────────────────────────────────────────────────
   # HOME BANKING — Un portal por banco
   #
   # Cada instancia es el mismo código (homebanking/) con distinta configuración.
@@ -356,13 +400,14 @@ services:
       dockerfile: Dockerfile
     container_name: homebanking-a
     depends_on:
-      bank-a:
+      core-gateway:
         condition: service_healthy
       banking-switch:
         condition: service_healthy
     environment:
-      CORE_BANK_URL: http://bank-a:8080          # Apunta exclusivamente a Banco A
+      CORE_BANK_URL: http://core-gateway:8080    # Llega a Banco A solo vía gateway
       SWITCH_URL: http://banking-switch:8090
+      SERVICE_TOKEN: ${SERVICE_TOKEN:-c2VydmljZS10b2tlbi1ob21lYmFua2luZy10by1jb3JlLTIwMjY=}
       JWT_SECRET: bXlfc3VwZXJfc2VjcmV0X2tleV9mb3JfYmFua2luZ19uZXR3b3JrXzIwMjRfYWJjZGVmZ2hpamtsbW5vcA==
       JWT_EXPIRATION_MS: 86400000
       LOKI_URL: http://loki:3100
@@ -384,13 +429,14 @@ services:
       dockerfile: Dockerfile
     container_name: homebanking-b
     depends_on:
-      bank-b:
+      core-gateway:
         condition: service_healthy
       banking-switch:
         condition: service_healthy
     environment:
-      CORE_BANK_URL: http://bank-b:8081          # Apunta exclusivamente a Banco B
+      CORE_BANK_URL: http://core-gateway:8081    # Llega a Banco B solo vía gateway
       SWITCH_URL: http://banking-switch:8090
+      SERVICE_TOKEN: ${SERVICE_TOKEN:-c2VydmljZS10b2tlbi1ob21lYmFua2luZy10by1jb3JlLTIwMjY=}
       JWT_SECRET: bXlfc3VwZXJfc2VjcmV0X2tleV9mb3JfYmFua2luZ19uZXR3b3JrXzIwMjRfYWJjZGVmZ2hpamtsbW5vcA==
       JWT_EXPIRATION_MS: 86400000
       LOKI_URL: http://loki:3100
@@ -412,13 +458,14 @@ services:
       dockerfile: Dockerfile
     container_name: homebanking-c
     depends_on:
-      bank-c:
+      core-gateway:
         condition: service_healthy
       banking-switch:
         condition: service_healthy
     environment:
-      CORE_BANK_URL: http://bank-c:8082          # Apunta exclusivamente a Banco C
+      CORE_BANK_URL: http://core-gateway:8082    # Llega a Banco C solo vía gateway
       SWITCH_URL: http://banking-switch:8090
+      SERVICE_TOKEN: ${SERVICE_TOKEN:-c2VydmljZS10b2tlbi1ob21lYmFua2luZy10by1jb3JlLTIwMjY=}
       JWT_SECRET: bXlfc3VwZXJfc2VjcmV0X2tleV9mb3JfYmFua2luZ19uZXR3b3JrXzIwMjRfYWJjZGVmZ2hpamtsbW5vcA==
       JWT_EXPIRATION_MS: 86400000
       LOKI_URL: http://loki:3100
@@ -453,6 +500,7 @@ services:
       - "9090:9090"
     networks:
       - banking-net
+      - core-net                               # Scrapea /actuator/prometheus de los Core
 
   # ────────────────────────────────────────────────────────────────────────────
   # MONITOREO — Loki (centralización de logs)
@@ -472,6 +520,7 @@ services:
       - "3100:3100"
     networks:
       - banking-net
+      - core-net                               # Los Core (en core-net) envían sus logs
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3100/ready | grep -q 'ready'"]
       interval: 10s
@@ -514,6 +563,15 @@ networks:
   banking-net:
     driver: bridge
     name: banking-network
+
+  # Red interna donde viven los Core Banking y sus bases de datos.
+  # `internal: true` => sin salida a internet; solo accesible por servicios
+  # conectados a ella (Core, DBs, gateway, e infraestructura kafka/loki/prometheus).
+  # El Home Banking NO está en esta red: solo alcanza al Core por el gateway.
+  core-net:
+    driver: bridge
+    internal: true
+    name: banking-core-net
 
 # ──────────────────────────────────────────────────────────────────────────────
 # VOLÚMENES PERSISTENTES

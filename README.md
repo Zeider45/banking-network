@@ -24,12 +24,14 @@ Red bancaria completa con Core Banking replicable, Banking Switch interbancario 
           └────────┬───────────────┬───────────────┬──────────┘
         Kafka      │             Kafka              │ Kafka
   ┌────────────────▼───┐   ┌─────▼──────────────┐  ┌▼──────────────────┐
-  │  BANCO A :8080      │   │  BANCO B :8081      │  │  BANCO C :8082    │
+  │  BANCO A (interno)  │   │  BANCO B (interno)  │  │  BANCO C (interno)│
   │  core-banking       │   │  core-banking       │  │  core-banking     │
   │  BANKA-ACC-000001   │   │  BANKB-ACC-000001   │  │  BANKC-ACC-000001 │
   │  ── PostgreSQL ──   │   │  ── MariaDB ────    │  │  ── MariaDB ───   │
   │  postgres-bank-a    │   │  mariadb-bank-b     │  │  mariadb-bank-c   │
   └─────────────────────┘   └─────────────────────┘  └───────────────────┘
+  Core sin puerto público (red interna core-net). Acceso solo vía core-gateway
+  y con cabecera X-Service-Token. El Home Banking apunta al gateway, no al Core.
 
 El mismo jar core-banking.jar corre en PostgreSQL y MariaDB:
 Hibernate 6 auto-detecta el driver y el dialecto desde la JDBC URL.
@@ -65,14 +67,21 @@ docker compose down -v
 | homebanking-a     | 8100   | —          | Portal Banco Alpha (usuarios de BANKA)  |
 | homebanking-b     | 8101   | —          | Portal Banco Beta  (usuarios de BANKB)  |
 | homebanking-c     | 8102   | —          | Portal Banco Gamma (usuarios de BANKC)  |
-| bank-a (BANKA)    | 8080   | PostgreSQL | Core Banking — postgres-bank-a :5432    |
-| bank-b (BANKB)    | 8081   | MariaDB    | Core Banking — mariadb-bank-b :3306     |
-| bank-c (BANKC)    | 8082   | MariaDB    | Core Banking — mariadb-bank-c :3307     |
+| bank-a (BANKA)    | interno| PostgreSQL | Core Banking — sin puerto público (red core-net) |
+| bank-b (BANKB)    | interno| MariaDB    | Core Banking — sin puerto público (red core-net) |
+| bank-c (BANKC)    | interno| MariaDB    | Core Banking — sin puerto público (red core-net) |
+| core-gateway      | interno| —          | Reverse proxy: único acceso al Core (:8080/8081/8082) |
 | banking-switch    | 8090   | —          | Enrutador interbancario                 |
 | Kafka UI          | 8180   | —          | Interfaz web de Kafka                   |
 | Grafana           | 3000   | —          | Dashboards (admin/banking123)           |
 | Prometheus        | 9090   | —          | Métricas                                |
 | Loki              | 3100   | —          | Logs centralizados                      |
+
+> **Nota de seguridad:** los Core Banking ya no publican puerto al host. Viven en
+> la red interna `core-net` y solo el `core-gateway` puede alcanzarlos. Además, el
+> Home Banking debe identificarse ante el Core enviando la cabecera
+> `X-Service-Token` (token de servicio / API key). Ver la sección
+> *Seguridad servicio-a-servicio* más abajo.
 
 ## Datos de prueba (se crean automáticamente)
 
@@ -187,16 +196,48 @@ curl http://localhost:8100/api/banking/account/history -H "Authorization: Bearer
 ```
 Usuario → HomeB (:8100)
   └─► POST /api/banking/transfer { targetBankCode: "BANKB" }
-        └─► CoreBanking-A (:8080)
-              └─► Debita BANKA-ACC-000001
-              └─► Publica en Kafka topic: switch.transfers
-                    └─► BankingSwitch (:8090)
-                          └─► Consume switch.transfers
-                          └─► Detecta targetBankCode=BANKB
-                          └─► Publica en Kafka topic: bank.BANKB.incoming
-                                └─► CoreBanking-B (:8081)
-                                      └─► Acredita BANKB-ACC-000001
-                                      └─► Registra transacción COMPLETED
+        └─► core-gateway  (+ cabecera X-Service-Token)
+              └─► CoreBanking-A (interno, core-net)
+                    └─► Debita BANKA-ACC-000001
+                    └─► Publica en Kafka topic: switch.transfers
+                          └─► BankingSwitch (:8090)
+                                └─► Consume switch.transfers
+                                └─► Detecta targetBankCode=BANKB
+                                └─► Publica en Kafka topic: bank.BANKB.incoming
+                                      └─► CoreBanking-B (interno, core-net)
+                                            └─► Acredita BANKB-ACC-000001
+                                            └─► Registra transacción COMPLETED
+```
+
+## Seguridad servicio-a-servicio
+
+El Core Banking es un servicio interno y se protege con tres capas
+complementarias (defensa en profundidad):
+
+1. **Sin puerto público.** Los Core (`bank-a/b/c`) no declaran `ports:` en
+   `docker-compose.yml`, así que no son accesibles desde el host.
+
+2. **Red interna aislada (`core-net`).** Los Core y sus bases de datos viven en
+   una red `internal: true`. El Home Banking **no** está en esa red: el único
+   componente que puede alcanzar al Core es el `core-gateway`. La infraestructura
+   compartida (Kafka, Loki, Prometheus) está conectada a ambas redes para que el
+   Core pueda producir/consumir mensajes, enviar logs y exponer métricas.
+
+3. **Token de servicio (API key).** El Core exige la cabecera `X-Service-Token`
+   en todos los endpoints `/api/**`. El Home Banking la inyecta automáticamente
+   en cada llamada. Los endpoints de `/actuator/**` quedan exentos para que
+   Prometheus y los healthchecks sigan funcionando.
+
+   - Core: propiedad `banking.service-token` (variable `SERVICE_TOKEN`),
+     validada por `ServiceTokenFilter`.
+   - Home Banking: propiedad `banking.service-token` (variable `SERVICE_TOKEN`),
+     enviada por `coreBankingClient`.
+   - **Ambos valores deben coincidir.** Cámbialos definiendo `SERVICE_TOKEN`
+     (por ejemplo en un archivo `.env`) antes de `docker compose up`.
+
+```
+Home Banking ──(X-Service-Token)──► core-gateway ──► Core Banking (/api/**)
+                                                       Actuator (/actuator/**) sin token
 ```
 
 ## Agregar un tercer banco
