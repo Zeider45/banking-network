@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Home Banking</title>
+  <style>
+    /* ─── Reset & base ─── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --p:       #1e40af;
+      --p-dark:  #1e3a8a;
+      --p-light: #dbeafe;
+      --p-xlight:#eff6ff;
+      --sidebar: 256px;
+      --topbar:  64px;
+      --r:       12px;
+      --sh:      0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
+      --sh-md:   0 4px 12px rgba(0,0,0,.08);
+      --sh-lg:   0 10px 25px rgba(0,0,0,.12);
+      --border:  #e2e8f0;
+      --text:    #1e293b;
+      --muted:   #64748b;
+      --bg:      #f1f5f9;
+    }
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); }
+    a { color: var(--p); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    input, select, button, textarea { font-family: inherit; }
+    button { cursor: pointer; }
+
+    /* ─── SCREENS ─── */
+    .screen { min-height: 100vh; }
+    #screen-app { display: flex; }
+
+    /* ═══════════════════════════════════
+       LOGIN
+    ═══════════════════════════════════ */
+    #screen-login {
+      display: flex; align-items: stretch; min-height: 100vh;
+    }
+    .login-left {
+      flex: 1; background: linear-gradient(160deg, var(--p-dark) 0%, var(--p) 100%);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 60px 48px; color: white;
+    }
+    .login-left .brand-icon {
+      width: 72px; height: 72px; background: rgba(255,255,255,.15);
+      border-radius: 20px; display: flex; align-items: center; justify-content: center;
+      margin-bottom: 28px;
+    }
+    .login-left .brand-icon svg { width: 40px; height: 40px; stroke: white; fill: none; stroke-width: 1.5; }
+    .login-left h1 { font-size: 2rem; font-weight: 800; text-align: center; }
+    .login-left .tagline { font-size: 1rem; opacity: .75; margin-top: 10px; text-align: center; max-width: 300px; line-height: 1.5; }
+    .login-features { margin-top: 48px; display: flex; flex-direction: column; gap: 16px; }
+    .feat { display: flex; align-items: center; gap: 12px; }
+    .feat-dot { width: 8px; height: 8px; background: rgba(255,255,255,.6); border-radius: 50%; flex-shrink: 0; }
+    .feat span { font-size: 0.88rem; opacity: .8; }
+
+    .login-right {
+      width: 440px; background: white; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; padding: 60px 48px;
+    }
+    .login-right h2 { font-size: 1.4rem; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+    .login-right .sub { font-size: 0.88rem; color: var(--muted); margin-bottom: 32px; }
+
+    .field { width: 100%; margin-bottom: 18px; }
+    .field label { display: block; font-size: 0.82rem; font-weight: 600; color: #374151; margin-bottom: 6px; }
+    .field input, .field select {
+      width: 100%; padding: 11px 14px; border: 1.5px solid var(--border);
+      border-radius: 8px; font-size: 0.94rem; color: var(--text); background: #f8fafc;
+      transition: border-color .15s, background .15s;
+    }
+    .field input:focus, .field select:focus { outline: none; border-color: var(--p); background: white; }
+    .field input::placeholder { color: #c4cdd8; }
+    .pw-wrap { position: relative; }
+    .pw-wrap input { padding-right: 44px; }
+    .toggle-pw {
+      position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; color: #94a3b8; padding: 4px;
+      display: flex; align-items: center;
+    }
+    .toggle-pw:hover { color: var(--p); }
+    .toggle-pw svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+    .btn-login {
+      width: 100%; padding: 13px; background: var(--p); color: white;
+      font-size: 0.95rem; font-weight: 700; border: none; border-radius: 8px;
+      margin-top: 8px; transition: background .15s, transform .1s;
+      display: flex; align-items: center; justify-content: center; gap: 8px; height: 46px;
+    }
+    .btn-login:hover:not(:disabled) { background: var(--p-dark); }
+    .btn-login:active:not(:disabled) { transform: scale(.99); }
+    .btn-login:disabled { opacity: .65; cursor: not-allowed; }
+
+    .login-alert {
+      width: 100%; background: #fef2f2; border: 1px solid #fecaca; color: #dc2626;
+      border-radius: 8px; padding: 10px 14px; font-size: 0.84rem; margin-bottom: 18px; display: none;
+    }
+    .login-footer { margin-top: 24px; font-size: 0.8rem; color: var(--muted); text-align: center; }
+
+    /* ═══════════════════════════════════
+       APP LAYOUT
+    ═══════════════════════════════════ */
+    #sidebar {
+      width: var(--sidebar); background: var(--p-dark); display: flex; flex-direction: column;
+      position: fixed; top: 0; left: 0; bottom: 0; z-index: 200;
+      box-shadow: 2px 0 16px rgba(0,0,0,.12);
+    }
+    .sb-header { padding: 24px 20px 20px; border-bottom: 1px solid rgba(255,255,255,.08); }
+    .sb-brand { display: flex; align-items: center; gap: 10px; }
+    .sb-brand .icon {
+      width: 36px; height: 36px; background: rgba(255,255,255,.15); border-radius: 9px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .sb-brand .icon svg { width: 20px; height: 20px; stroke: white; fill: none; stroke-width: 1.5; }
+    .sb-brand-name { font-size: 0.95rem; font-weight: 800; color: white; letter-spacing: -.01em; }
+    .sb-brand-sub { font-size: 0.7rem; color: rgba(255,255,255,.45); margin-top: 1px; }
+
+    .sb-user { padding: 18px 20px; border-bottom: 1px solid rgba(255,255,255,.08); }
+    .sb-avatar {
+      width: 42px; height: 42px; border-radius: 50%; background: var(--p);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 1.05rem; color: white; margin-bottom: 10px;
+      border: 2px solid rgba(255,255,255,.2);
+    }
+    .sb-username { font-size: 0.9rem; font-weight: 700; color: white; }
+    .sb-account { font-size: 0.72rem; color: rgba(255,255,255,.45); margin-top: 2px; font-family: monospace; }
+
+    .sb-nav { flex: 1; padding: 14px 10px; overflow-y: auto; }
+    .nav-section { font-size: 0.65rem; text-transform: uppercase; letter-spacing: .08em;
+                   color: rgba(255,255,255,.35); padding: 14px 10px 6px; font-weight: 600; }
+    .nav-item {
+      display: flex; align-items: center; gap: 11px; padding: 10px 12px;
+      border-radius: 8px; color: rgba(255,255,255,.65); font-size: 0.87rem; font-weight: 500;
+      border: none; background: none; width: 100%; text-align: left; margin-bottom: 1px;
+      transition: background .15s, color .15s;
+    }
+    .nav-item:hover { background: rgba(255,255,255,.08); color: white; }
+    .nav-item.active { background: rgba(255,255,255,.16); color: white; font-weight: 700; }
+    .nav-item svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 2; flex-shrink: 0; }
+    .nav-badge {
+      margin-left: auto; background: var(--p); color: white;
+      font-size: 0.65rem; font-weight: 700; padding: 2px 6px; border-radius: 8px;
+    }
+
+    .sb-footer { padding: 14px 10px; border-top: 1px solid rgba(255,255,255,.08); }
+    .btn-logout {
+      display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+      border-radius: 8px; color: rgba(255,255,255,.5); font-size: 0.85rem;
+      border: none; background: none; width: 100%; transition: background .15s, color .15s;
+    }
+    .btn-logout:hover { background: rgba(239,68,68,.15); color: #fca5a5; }
+    .btn-logout svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+    /* ─── Main wrapper ─── */
+    #main-wrapper { margin-left: var(--sidebar); flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
+
+    #topbar {
+      height: var(--topbar); background: white; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 32px; position: sticky; top: 0; z-index: 100;
+      box-shadow: var(--sh);
+    }
+    #topbar h2 { font-size: 1.05rem; font-weight: 700; color: var(--text); }
+    .topbar-right { display: flex; align-items: center; gap: 16px; }
+    .topbar-time { font-size: 0.8rem; color: var(--muted); }
+    .topbar-avatar {
+      width: 36px; height: 36px; border-radius: 50%; background: var(--p-light);
+      color: var(--p); font-weight: 700; font-size: 0.9rem;
+      display: flex; align-items: center; justify-content: center;
+      border: 2px solid var(--p-light);
+    }
+
+    #content { flex: 1; padding: 28px 32px; }
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* ─── Page header ─── */
+    .pg-header { margin-bottom: 24px; }
+    .pg-header h1 { font-size: 1.45rem; font-weight: 800; color: var(--text); }
+    .pg-header p  { font-size: 0.86rem; color: var(--muted); margin-top: 4px; }
+
+    /* ═══════════════════════════════════
+       DASHBOARD
+    ═══════════════════════════════════ */
+    .balance-card {
+      background: linear-gradient(135deg, var(--p) 0%, var(--p-dark) 100%);
+      border-radius: 16px; padding: 30px 32px; color: white;
+      box-shadow: var(--sh-lg); margin-bottom: 24px; position: relative; overflow: hidden;
+    }
+    .balance-card::before {
+      content: ''; position: absolute; right: -40px; top: -40px;
+      width: 200px; height: 200px; background: rgba(255,255,255,.06); border-radius: 50%;
+    }
+    .balance-card::after {
+      content: ''; position: absolute; right: 40px; bottom: -60px;
+      width: 150px; height: 150px; background: rgba(255,255,255,.04); border-radius: 50%;
+    }
+    .bc-label { font-size: 0.8rem; opacity: .75; text-transform: uppercase; letter-spacing: .06em; }
+    .bc-amount { font-size: 3rem; font-weight: 800; letter-spacing: -.03em; margin: 8px 0 4px; position: relative; z-index: 1; }
+    .bc-currency { font-size: 1.1rem; opacity: .7; font-weight: 500; margin-left: 4px; }
+    .bc-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 24px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,.18); }
+    .bc-acct { font-size: 0.82rem; opacity: .7; font-family: monospace; }
+    .bc-badge { background: rgba(255,255,255,.2); padding: 4px 12px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; }
+
+    .quick-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 24px; }
+    .quick-btn {
+      background: white; border: 1.5px solid var(--border); border-radius: var(--r);
+      padding: 20px 16px; text-align: center; cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+      font-size: 0.87rem; font-weight: 600; color: var(--muted);
+      transition: border-color .15s, box-shadow .15s, transform .12s, color .15s;
+      box-shadow: var(--sh);
+    }
+    .quick-btn:hover { border-color: var(--p); box-shadow: var(--sh-md); transform: translateY(-2px); color: var(--p); }
+    .quick-btn .qb-icon { width: 46px; height: 46px; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
+    .quick-btn:hover .qb-icon { filter: brightness(1.1); }
+    .quick-btn svg { width: 22px; height: 22px; stroke: white; fill: none; stroke-width: 2; }
+    .bg-green  { background: #059669; }
+    .bg-red    { background: #dc2626; }
+    .bg-blue   { background: var(--p); }
+
+    .two-col { display: grid; grid-template-columns: 1.5fr 1fr; gap: 20px; }
+
+    /* ─── Card ─── */
+    .card { background: white; border-radius: var(--r); padding: 24px; box-shadow: var(--sh); }
+    .card-title { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
+    .card-link { font-size: 0.78rem; color: var(--p); font-weight: 600; text-transform: none; letter-spacing: 0; cursor: pointer; }
+    .card-link:hover { text-decoration: underline; }
+
+    /* ─── Transactions ─── */
+    .tx-item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
+    .tx-item:last-child { border-bottom: none; }
+    .tx-icon { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .tx-icon svg { width: 18px; height: 18px; stroke: white; fill: none; stroke-width: 2; }
+    .tx-info { flex: 1; min-width: 0; }
+    .tx-type { font-size: 0.86rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tx-desc { font-size: 0.75rem; color: var(--muted); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tx-right { text-align: right; flex-shrink: 0; }
+    .tx-amount { font-size: 0.92rem; font-weight: 700; }
+    .tx-date { font-size: 0.72rem; color: #94a3b8; margin-top: 2px; }
+    .tx-status { font-size: 0.68rem; padding: 2px 7px; border-radius: 10px; display: inline-block; margin-top: 3px; font-weight: 600; }
+
+    .pos  { color: #059669; }
+    .neg  { color: #dc2626; }
+    .st-COMPLETED { background: #dcfce7; color: #15803d; }
+    .st-PENDING   { background: #fef9c3; color: #a16207; }
+    .st-FAILED    { background: #fee2e2; color: #b91c1c; }
+
+    /* ─── Account info card ─── */
+    .info-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f8fafc; }
+    .info-row:last-child { border-bottom: none; }
+    .info-key { font-size: 0.8rem; color: var(--muted); }
+    .info-val { font-size: 0.85rem; font-weight: 600; color: var(--text); font-family: monospace; }
+
+    /* ═══════════════════════════════════
+       FORMS (deposit / withdrawal / transfer)
+    ═══════════════════════════════════ */
+    .form-wrap { max-width: 500px; }
+    .form-card { background: white; border-radius: var(--r); padding: 32px; box-shadow: var(--sh); }
+    .form-card .field { margin-bottom: 20px; }
+    .form-card .field:last-of-type { margin-bottom: 0; }
+    .amount-wrap { position: relative; }
+    .amount-sym { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); font-weight: 700; font-size: 1rem; }
+    .amount-wrap input { padding-left: 28px; font-size: 1.1rem; font-weight: 600; }
+
+    .btn-action {
+      width: 100%; padding: 13px; background: var(--p); color: white;
+      font-size: 0.95rem; font-weight: 700; border: none; border-radius: 8px; margin-top: 24px;
+      display: flex; align-items: center; justify-content: center; gap: 8px; height: 46px;
+      transition: background .15s, transform .1s;
+    }
+    .btn-action:hover:not(:disabled) { background: var(--p-dark); }
+    .btn-action:disabled { opacity: .6; cursor: not-allowed; }
+
+    .form-alert { border-radius: 8px; padding: 11px 14px; font-size: 0.84rem; margin-bottom: 16px; display: none; }
+    .alert-ok  { background: #dcfce7; border: 1px solid #bbf7d0; color: #15803d; }
+    .alert-err { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; }
+
+    .form-divider { height: 1px; background: var(--border); margin: 20px 0; }
+    .form-hint { font-size: 0.8rem; color: var(--muted); margin-top: -14px; margin-bottom: 18px; }
+
+    /* Transfer bank selector */
+    .bank-opt { display: flex; align-items: center; gap: 8px; }
+
+    /* ═══════════════════════════════════
+       HISTORY (full table)
+    ═══════════════════════════════════ */
+    .filter-row { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+    .filter-btn {
+      padding: 7px 16px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;
+      border: 1.5px solid var(--border); background: white; color: var(--muted);
+      transition: all .15s; cursor: pointer;
+    }
+    .filter-btn.active { background: var(--p); border-color: var(--p); color: white; }
+    .filter-btn:hover:not(.active) { border-color: var(--p); color: var(--p); }
+
+    .history-table { background: white; border-radius: var(--r); box-shadow: var(--sh); overflow: hidden; }
+    .ht-head { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 0; background: #f8fafc; border-bottom: 1px solid var(--border); }
+    .ht-th { padding: 12px 20px; font-size: 0.75rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+    .ht-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; border-bottom: 1px solid #f1f5f9; transition: background .1s; }
+    .ht-row:last-child { border-bottom: none; }
+    .ht-row:hover { background: var(--p-xlight); }
+    .ht-td { padding: 14px 20px; display: flex; align-items: center; font-size: 0.85rem; }
+    .ht-td:last-child { justify-content: flex-end; }
+
+    /* ─── Loading / Empty ─── */
+    .loading { text-align: center; padding: 40px; color: var(--muted); }
+    .spinner { width: 26px; height: 26px; border: 3px solid #e2e8f0; border-top-color: var(--p); border-radius: 50%; animation: spin .7s linear infinite; margin: 0 auto 12px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .empty { text-align: center; padding: 48px 20px; color: #94a3b8; }
+    .empty svg { width: 44px; height: 44px; stroke: currentColor; fill: none; stroke-width: 1.5; margin-bottom: 12px; opacity: .5; }
+    .empty p { font-size: 0.88rem; }
+
+    /* ─── Toast ─── */
+    #toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+      padding: 13px 20px; border-radius: 10px; font-size: 0.86rem; font-weight: 600;
+      box-shadow: var(--sh-lg); max-width: 320px;
+      transform: translateY(80px); opacity: 0; transition: transform .3s ease, opacity .3s ease;
+      display: flex; align-items: center; gap: 10px;
+    }
+    #toast svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2.5; flex-shrink: 0; }
+    #toast.show { transform: translateY(0); opacity: 1; }
+    #toast.ok  { background: #064e3b; color: #6ee7b7; }
+    #toast.err { background: #7f1d1d; color: #fca5a5; }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 900px) {
+      .login-left { display: none; }
+      .login-right { width: 100%; padding: 40px 24px; }
+      #sidebar { transform: translateX(-100%); transition: transform .3s; }
+      #sidebar.open { transform: translateX(0); }
+      #main-wrapper { margin-left: 0; }
+      .two-col { grid-template-columns: 1fr; }
+      .quick-actions { grid-template-columns: repeat(3,1fr); gap: 10px; }
+      .ht-head, .ht-row { grid-template-columns: 2fr 1fr 1fr; }
+      .ht-th:nth-child(3), .ht-td:nth-child(3) { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════
+     LOGIN
+════════════════════════════════════ -->
+<div id="screen-login" class="screen">
+  <div class="login-left">
+    <div class="brand-icon">
+      <svg viewBox="0 0 24 24"><path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 10v11M16 10v11M12 10v11"/></svg>
+    </div>
+    <h1 id="login-bank-name">Home Banking</h1>
+    <p class="tagline">Tu banco digital, siempre disponible para ti</p>
+    <div class="login-features">
+      <div class="feat"><div class="feat-dot"></div><span>Transferencias nacionales e interbancarias</span></div>
+      <div class="feat"><div class="feat-dot"></div><span>Consulta de saldo y movimientos</span></div>
+      <div class="feat"><div class="feat-dot"></div><span>Depósitos y retiros en línea</span></div>
+      <div class="feat"><div class="feat-dot"></div><span>Historial completo de transacciones</span></div>
+    </div>
+  </div>
+
+  <div class="login-right">
+    <h2>Bienvenido</h2>
+    <p class="sub">Ingresa tus credenciales para continuar</p>
+
+    <div id="login-alert" class="login-alert"></div>
+
+    <div class="field">
+      <label for="inp-email">Correo electrónico</label>
+      <input type="email" id="inp-email" placeholder="usuario@correo.com" autocomplete="email"/>
+    </div>
+    <div class="field">
+      <label for="inp-pw">Contraseña</label>
+      <div class="pw-wrap">
+        <input type="password" id="inp-pw" placeholder="••••••••" autocomplete="current-password"/>
+        <button class="toggle-pw" type="button" onclick="togglePw()" title="Mostrar/ocultar contraseña">
+          <svg id="eye-icon" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <button class="btn-login" id="btn-login" onclick="doLogin()">
+      <span id="btn-login-text">Iniciar sesión</span>
+    </button>
+    <p class="login-footer">¿Necesitas ayuda? <a href="/">Ver documentación de la API</a></p>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════
+     APP
+════════════════════════════════════ -->
+<div id="screen-app" class="screen" hidden>
+
+  <!-- Sidebar -->
+  <aside id="sidebar">
+    <div class="sb-header">
+      <div class="sb-brand">
+        <div class="icon">
+          <svg viewBox="0 0 24 24"><path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 10v11M16 10v11M12 10v11"/></svg>
+        </div>
+        <div>
+          <div class="sb-brand-name" id="sb-bank-name">BANCO</div>
+          <div class="sb-brand-sub">Home Banking Digital</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sb-user">
+      <div class="sb-avatar" id="sb-avatar">U</div>
+      <div class="sb-username" id="sb-username">Usuario</div>
+      <div class="sb-account" id="sb-account">—</div>
+    </div>
+
+    <nav class="sb-nav">
+      <div class="nav-section">Principal</div>
+      <button class="nav-item active" data-page="dashboard" onclick="nav('dashboard')">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Dashboard
+      </button>
+
+      <div class="nav-section">Operaciones</div>
+      <button class="nav-item" data-page="deposit" onclick="nav('deposit')">
+        <svg viewBox="0 0 24 24"><polyline points="17 11 12 6 7 11"/><line x1="12" y1="18" x2="12" y2="6"/><line x1="3" y1="21" x2="21" y2="21"/></svg>
+        Depositar
+      </button>
+      <button class="nav-item" data-page="withdrawal" onclick="nav('withdrawal')">
+        <svg viewBox="0 0 24 24"><polyline points="7 13 12 18 17 13"/><line x1="12" y1="6" x2="12" y2="18"/><line x1="3" y1="21" x2="21" y2="21"/></svg>
+        Retirar
+      </button>
+      <button class="nav-item" data-page="transfer" onclick="nav('transfer')">
+        <svg viewBox="0 0 24 24"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+        Transferir
+      </button>
+
+      <div class="nav-section">Cuenta</div>
+      <button class="nav-item" data-page="history" onclick="nav('history')">
+        <svg viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
+        Historial
+      </button>
+    </nav>
+
+    <div class="sb-footer">
+      <button class="btn-logout" onclick="logout()">
+        <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Cerrar sesión
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div id="main-wrapper">
+    <header id="topbar">
+      <h2 id="page-title">Dashboard</h2>
+      <div class="topbar-right">
+        <span class="topbar-time" id="topbar-time"></span>
+        <div class="topbar-avatar" id="topbar-avatar">U</div>
+      </div>
+    </header>
+
+    <main id="content">
+
+      <!-- ── DASHBOARD ── -->
+      <div id="page-dashboard" class="page active">
+        <div class="pg-header">
+          <h1 id="dash-greeting">Buen día</h1>
+          <p>Resumen de tu cuenta al día de hoy</p>
+        </div>
+
+        <!-- Balance -->
+        <div class="balance-card">
+          <div class="bc-label">Saldo disponible</div>
+          <div class="bc-amount" id="dash-balance">
+            <div class="spinner" style="margin:0;display:inline-block;vertical-align:middle;border-top-color:rgba(255,255,255,.5);border-color:rgba(255,255,255,.2)"></div>
+          </div>
+          <div class="bc-footer">
+            <div class="bc-acct" id="dash-acct-num">—</div>
+            <div class="bc-badge" id="dash-currency">USD</div>
+          </div>
+        </div>
+
+        <!-- Quick actions -->
+        <div class="quick-actions">
+          <button class="quick-btn" onclick="nav('deposit')">
+            <div class="qb-icon bg-green">
+              <svg viewBox="0 0 24 24"><polyline points="17 11 12 6 7 11"/><line x1="12" y1="18" x2="12" y2="6"/><line x1="3" y1="21" x2="21" y2="21"/></svg>
+            </div>
+            Depositar
+          </button>
+          <button class="quick-btn" onclick="nav('withdrawal')">
+            <div class="qb-icon bg-red">
+              <svg viewBox="0 0 24 24"><polyline points="7 13 12 18 17 13"/><line x1="12" y1="6" x2="12" y2="18"/><line x1="3" y1="21" x2="21" y2="21"/></svg>
+            </div>
+            Retirar
+          </button>
+          <button class="quick-btn" onclick="nav('transfer')">
+            <div class="qb-icon bg-blue">
+              <svg viewBox="0 0 24 24"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+            </div>
+            Transferir
+          </button>
+        </div>
+
+        <!-- Two-col: transactions + account info -->
+        <div class="two-col">
+          <div class="card">
+            <div class="card-title">
+              Últimos movimientos
+              <span class="card-link" onclick="nav('history')">Ver todos →</span>
+            </div>
+            <div id="dash-txs"><div class="loading"><div class="spinner"></div>Cargando...</div></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Información de cuenta</div>
+            <div id="dash-acct-info"><div class="loading"><div class="spinner"></div></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── DEPOSIT ── -->
+      <div id="page-deposit" class="page">
+        <div class="pg-header">
+          <h1>Depositar fondos</h1>
+          <p>Ingresa dinero a tu cuenta de forma inmediata</p>
+        </div>
+        <div class="form-wrap">
+          <div class="form-card">
+            <div id="dep-ok"  class="form-alert alert-ok"></div>
+            <div id="dep-err" class="form-alert alert-err"></div>
+            <div class="field">
+              <label>Monto a depositar</label>
+              <div class="amount-wrap">
+                <span class="amount-sym">$</span>
+                <input type="number" id="dep-amount" min="0.01" step="0.01" placeholder="0.00"/>
+              </div>
+            </div>
+            <div class="field">
+              <label>Descripción <span style="color:#94a3b8;font-weight:400">(opcional)</span></label>
+              <input type="text" id="dep-desc" placeholder="Ej: Depósito en efectivo" maxlength="100"/>
+            </div>
+            <button class="btn-action" id="btn-dep" onclick="doDeposit()">
+              <svg viewBox="0 0 24 24" width="18" height="18" stroke="white" fill="none" stroke-width="2"><polyline points="17 11 12 6 7 11"/><line x1="12" y1="18" x2="12" y2="6"/></svg>
+              Confirmar depósito
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── WITHDRAWAL ── -->
+      <div id="page-withdrawal" class="page">
+        <div class="pg-header">
+          <h1>Retirar fondos</h1>
+          <p>Retira dinero de tu cuenta al instante</p>
+        </div>
+        <div class="form-wrap">
+          <div class="form-card">
+            <div id="wit-ok"  class="form-alert alert-ok"></div>
+            <div id="wit-err" class="form-alert alert-err"></div>
+            <div style="background:var(--p-xlight);border:1px solid var(--p-light);border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:0.83rem;color:var(--p);">
+              Saldo disponible: <strong id="wit-balance">—</strong>
+            </div>
+            <div class="field">
+              <label>Monto a retirar</label>
+              <div class="amount-wrap">
+                <span class="amount-sym">$</span>
+                <input type="number" id="wit-amount" min="0.01" step="0.01" placeholder="0.00"/>
+              </div>
+            </div>
+            <div class="field">
+              <label>Descripción <span style="color:#94a3b8;font-weight:400">(opcional)</span></label>
+              <input type="text" id="wit-desc" placeholder="Ej: Retiro cajero" maxlength="100"/>
+            </div>
+            <button class="btn-action" id="btn-wit" onclick="doWithdrawal()" style="background:#dc2626;">
+              <svg viewBox="0 0 24 24" width="18" height="18" stroke="white" fill="none" stroke-width="2"><polyline points="7 13 12 18 17 13"/><line x1="12" y1="6" x2="12" y2="18"/></svg>
+              Confirmar retiro
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── TRANSFER ── -->
+      <div id="page-transfer" class="page">
+        <div class="pg-header">
+          <h1>Transferir fondos</h1>
+          <p>Envía dinero a cualquier cuenta de la red bancaria</p>
+        </div>
+        <div class="form-wrap">
+          <div class="form-card">
+            <div id="tr-ok"  class="form-alert alert-ok"></div>
+            <div id="tr-err" class="form-alert alert-err"></div>
+
+            <div class="field">
+              <label>Banco destino</label>
+              <select id="tr-bank" onchange="onBankChange()">
+                <option value="">Cargando bancos...</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Número de cuenta destino</label>
+              <input type="text" id="tr-acct" placeholder="Ej: BANKB-ACC-000001" style="font-family:monospace"/>
+            </div>
+            <p class="form-hint" id="tr-hint"></p>
+
+            <div class="form-divider"></div>
+
+            <div class="field">
+              <label>Monto a transferir</label>
+              <div class="amount-wrap">
+                <span class="amount-sym">$</span>
+                <input type="number" id="tr-amount" min="0.01" step="0.01" placeholder="0.00"/>
+              </div>
+            </div>
+            <div class="field">
+              <label>Descripción <span style="color:#94a3b8;font-weight:400">(opcional)</span></label>
+              <input type="text" id="tr-desc" placeholder="Ej: Pago de servicio" maxlength="100"/>
+            </div>
+
+            <button class="btn-action" id="btn-tr" onclick="doTransfer()">
+              <svg viewBox="0 0 24 24" width="18" height="18" stroke="white" fill="none" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+              Enviar transferencia
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── HISTORY ── -->
+      <div id="page-history" class="page">
+        <div class="pg-header">
+          <h1>Historial de movimientos</h1>
+          <p>Todas las transacciones de tu cuenta</p>
+        </div>
+        <div class="filter-row" id="filter-row">
+          <button class="filter-btn active" data-filter="ALL" onclick="setFilter('ALL',this)">Todos</button>
+          <button class="filter-btn" data-filter="DEPOSIT" onclick="setFilter('DEPOSIT',this)">Depósitos</button>
+          <button class="filter-btn" data-filter="WITHDRAWAL" onclick="setFilter('WITHDRAWAL',this)">Retiros</button>
+          <button class="filter-btn" data-filter="TRANSFER" onclick="setFilter('TRANSFER',this)">Transferencias</button>
+        </div>
+        <div class="history-table">
+          <div class="ht-head">
+            <div class="ht-th">Movimiento</div>
+            <div class="ht-th">Fecha</div>
+            <div class="ht-th">Estado</div>
+            <div class="ht-th" style="text-align:right">Monto</div>
+          </div>
+          <div id="history-body"><div class="loading"><div class="spinner"></div>Cargando historial...</div></div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+'use strict';
+
+/* ─── Bank config per port ─── */
+const BANKS = {
+  '8100': { code:'BANKA', name:'Banco BANKA', color:'#1e40af', dark:'#1e3a8a', light:'#dbeafe', xlight:'#eff6ff' },
+  '8101': { code:'BANKB', name:'Banco BANKB', color:'#065f46', dark:'#064e3b', light:'#d1fae5', xlight:'#ecfdf5' },
+  '8102': { code:'BANKC', name:'Banco BANKC', color:'#5b21b6', dark:'#4c1d95', light:'#ede9fe', xlight:'#f5f3ff' },
+};
+const BANK = BANKS[location.port] || { code:'BANK?', name:'Home Banking', color:'#1e40af', dark:'#1e3a8a', light:'#dbeafe', xlight:'#eff6ff' };
+
+/* ─── Apply bank theme ─── */
+(function applyTheme() {
+  const r = document.documentElement.style;
+  r.setProperty('--p',      BANK.color);
+  r.setProperty('--p-dark', BANK.dark);
+  r.setProperty('--p-light',BANK.light);
+  r.setProperty('--p-xlight',BANK.xlight);
+  document.title = BANK.name;
+  document.getElementById('login-bank-name').textContent = BANK.name;
+  document.getElementById('sb-bank-name').textContent   = BANK.code;
+})();
+
+/* ─── State ─── */
+let jwt     = sessionStorage.getItem('hb_jwt') || null;
+let account = null;
+let allTxs  = [];
+let txFilter= 'ALL';
+let banks   = [];
+
+/* ─── Bootstrap ─── */
+window.addEventListener('DOMContentLoaded', () => {
+  tickClock();
+  setInterval(tickClock, 60000);
+  document.getElementById('inp-pw').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+  document.getElementById('inp-email').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('inp-pw').focus(); });
+  if (jwt) enterApp();
+});
+
+/* ─── Clock ─── */
+function tickClock() {
+  const now = new Date();
+  document.getElementById('topbar-time').textContent =
+    now.toLocaleDateString('es-VE', {weekday:'short', day:'numeric', month:'short'}) + ' · ' +
+    now.toLocaleTimeString('es-VE', {hour:'2-digit', minute:'2-digit'});
+}
+
+/* ─── API helper ─── */
+async function api(method, path, body) {
+  const headers = {'Content-Type':'application/json'};
+  if (jwt) headers['Authorization'] = 'Bearer ' + jwt;
+  const res = await fetch(path, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined
+  });
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : {};
+  if (!res.ok) {
+    const msg = data.error || data.message || (data.errors ? Object.values(data.errors).join(', ') : 'Error desconocido');
+    throw new Error(msg);
+  }
+  return data;
+}
+
+/* ─── Login ─── */
+function togglePw() {
+  const inp = document.getElementById('inp-pw');
+  const closed = `<svg viewBox="0 0 24 24" id="eye-icon"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+  const open   = `<svg viewBox="0 0 24 24" id="eye-icon"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+  if (inp.type === 'password') { inp.type = 'text';     document.querySelector('.toggle-pw').innerHTML = open; }
+  else                         { inp.type = 'password'; document.querySelector('.toggle-pw').innerHTML = closed; }
+}
+
+async function doLogin() {
+  const email    = document.getElementById('inp-email').value.trim();
+  const password = document.getElementById('inp-pw').value;
+  const alertEl  = document.getElementById('login-alert');
+  const btn      = document.getElementById('btn-login');
+  const btnText  = document.getElementById('btn-login-text');
+
+  alertEl.style.display = 'none';
+  if (!email || !password) { showLoginError('Completa todos los campos.'); return; }
+
+  btn.disabled = true;
+  btnText.textContent = 'Ingresando...';
+
+  try {
+    const data = await api('POST', '/api/auth/login', { email, password, bankCode: BANK.code });
+    jwt = data.token;
+    sessionStorage.setItem('hb_jwt', jwt);
+    enterApp();
+  } catch(e) {
+    showLoginError(e.message || 'Credenciales inválidas. Verifica tu correo y contraseña.');
+  } finally {
+    btn.disabled = false;
+    btnText.textContent = 'Iniciar sesión';
+  }
+}
+
+function showLoginError(msg) {
+  const el = document.getElementById('login-alert');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+/* ─── Enter app ─── */
+function enterApp() {
+  document.getElementById('screen-login').hidden = true;
+  document.getElementById('screen-app').hidden  = false;
+  loadAccount().then(() => {
+    nav('dashboard');
+    loadBanks();
+  });
+}
+
+/* ─── Logout ─── */
+function logout() {
+  jwt = null; account = null; allTxs = []; banks = [];
+  sessionStorage.removeItem('hb_jwt');
+  document.getElementById('screen-app').hidden  = true;
+  document.getElementById('screen-login').hidden = false;
+  document.getElementById('inp-email').value = '';
+  document.getElementById('inp-pw').value = '';
+}
+
+/* ─── Load account data ─── */
+async function loadAccount() {
+  try {
+    account = await api('GET', '/api/banking/account');
+    updateSidebar();
+  } catch(e) {
+    if (e.message.includes('401') || e.message.toLowerCase().includes('token')) logout();
+  }
+}
+
+function updateSidebar() {
+  if (!account) return;
+  const name = account.ownerName || 'Usuario';
+  const initials = name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+  document.getElementById('sb-avatar').textContent   = initials;
+  document.getElementById('sb-username').textContent = name;
+  document.getElementById('sb-account').textContent  = account.accountNumber || '';
+  document.getElementById('topbar-avatar').textContent = initials;
+}
+
+/* ─── Navigation ─── */
+function nav(pageId) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + pageId).classList.add('active');
+  document.querySelector(`[data-page="${pageId}"]`)?.classList.add('active');
+
+  const titles = { dashboard:'Dashboard', deposit:'Depositar', withdrawal:'Retirar', transfer:'Transferir', history:'Historial' };
+  document.getElementById('page-title').textContent = titles[pageId] || '';
+
+  if (pageId === 'dashboard') renderDashboard();
+  if (pageId === 'withdrawal') document.getElementById('wit-balance').textContent =
+    account ? fmt(account.balance) : '—';
+  if (pageId === 'history')   renderHistory();
+  if (pageId === 'transfer' && banks.length === 0) loadBanks();
+
+  window.scrollTo(0, 0);
+}
+
+/* ─── Dashboard ─── */
+async function renderDashboard() {
+  // Greeting
+  const h = new Date().getHours();
+  const g = h < 12 ? 'Buenos días' : h < 18 ? 'Buenas tardes' : 'Buenas noches';
+  const firstName = (account?.ownerName || '').split(' ')[0];
+  document.getElementById('dash-greeting').textContent = `${g}, ${firstName}`;
+
+  // Balance
+  if (account) {
+    document.getElementById('dash-balance').innerHTML =
+      `<span>${fmt(account.balance)}</span><span class="bc-currency">${account.currency || 'USD'}</span>`;
+    document.getElementById('dash-acct-num').textContent = account.accountNumber || '';
+    document.getElementById('dash-currency').textContent = account.currency || 'USD';
+  }
+
+  // Account info
+  if (account) {
+    document.getElementById('dash-acct-info').innerHTML = `
+      <div class="info-row"><span class="info-key">Número de cuenta</span><span class="info-val">${account.accountNumber}</span></div>
+      <div class="info-row"><span class="info-key">Código de banco</span><span class="info-val">${account.bankCode}</span></div>
+      <div class="info-row"><span class="info-key">Moneda</span><span class="info-val">${account.currency}</span></div>
+      <div class="info-row"><span class="info-key">Estado</span><span class="info-val" style="color:${account.active?'#059669':'#dc2626'}">${account.active?'Activa':'Inactiva'}</span></div>
+      <div class="info-row"><span class="info-key">Titular</span><span class="info-val" style="font-family:inherit">${account.ownerName}</span></div>
+    `;
+  }
+
+  // Transactions (last 5)
+  document.getElementById('dash-txs').innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
+  try {
+    allTxs = await api('GET', '/api/banking/account/history');
+    const recent = allTxs.slice(0, 5);
+    document.getElementById('dash-txs').innerHTML =
+      recent.length ? recent.map(txHTML).join('') : emptyHTML('Sin movimientos recientes');
+  } catch {
+    document.getElementById('dash-txs').innerHTML = emptyHTML('No se pudieron cargar los movimientos');
+  }
+}
+
+/* ─── History ─── */
+async function renderHistory() {
+  document.getElementById('history-body').innerHTML = `<div class="loading"><div class="spinner"></div>Cargando historial...</div>`;
+  try {
+    allTxs = await api('GET', '/api/banking/account/history');
+    renderFilteredHistory();
+  } catch {
+    document.getElementById('history-body').innerHTML = emptyHTML('No se pudo cargar el historial');
+  }
+}
+
+function setFilter(f, el) {
+  txFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderFilteredHistory();
+}
+
+function renderFilteredHistory() {
+  const filtered = txFilter === 'ALL' ? allTxs :
+    txFilter === 'TRANSFER' ? allTxs.filter(t => t.type?.startsWith('TRANSFER')) :
+    allTxs.filter(t => t.type === txFilter);
+
+  if (!filtered.length) {
+    document.getElementById('history-body').innerHTML = emptyHTML('No hay movimientos con ese filtro');
+    return;
+  }
+  document.getElementById('history-body').innerHTML = filtered.map(t => `
+    <div class="ht-row">
+      <div class="ht-td" style="gap:12px">
+        <div class="tx-icon" style="background:${txColor(t.type)};min-width:36px;height:36px">${txSvg(t.type)}</div>
+        <div>
+          <div style="font-weight:600;font-size:.86rem">${txLabel(t.type)}</div>
+          <div style="font-size:.74rem;color:var(--muted)">${t.description||''}</div>
+        </div>
+      </div>
+      <div class="ht-td" style="font-size:.8rem;color:var(--muted)">${fmtDate(t.createdAt)}</div>
+      <div class="ht-td"><span class="tx-status st-${t.status}">${statusLabel(t.status)}</span></div>
+      <div class="ht-td" style="font-weight:700;color:${isPositive(t.type)?'#059669':'#dc2626'};font-size:.92rem">
+        ${isPositive(t.type)?'+':'-'}${fmt(t.amount)}
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ─── Deposit ─── */
+async function doDeposit() {
+  const amount = parseFloat(document.getElementById('dep-amount').value);
+  const desc   = document.getElementById('dep-desc').value.trim();
+  const btn    = document.getElementById('btn-dep');
+
+  hideFormAlerts('dep');
+  if (!amount || amount <= 0) { showFormAlert('dep','err','Ingresa un monto válido mayor a 0.'); return; }
+
+  btn.disabled = true; btn.textContent = 'Procesando...';
+  try {
+    const res = await api('POST', '/api/banking/deposit', { amount, description: desc || 'Depósito' });
+    await loadAccount();
+    document.getElementById('dep-amount').value = '';
+    document.getElementById('dep-desc').value   = '';
+    showFormAlert('dep','ok', `✓ Depósito de ${fmt(amount)} realizado con éxito.`);
+    toast('ok', `Depósito de ${fmt(amount)} acreditado`);
+  } catch(e) {
+    showFormAlert('dep','err', e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Confirmar depósito';
+  }
+}
+
+/* ─── Withdrawal ─── */
+async function doWithdrawal() {
+  const amount = parseFloat(document.getElementById('wit-amount').value);
+  const desc   = document.getElementById('wit-desc').value.trim();
+  const btn    = document.getElementById('btn-wit');
+
+  hideFormAlerts('wit');
+  if (!amount || amount <= 0) { showFormAlert('wit','err','Ingresa un monto válido mayor a 0.'); return; }
+  if (account && amount > account.balance) { showFormAlert('wit','err','Saldo insuficiente para este retiro.'); return; }
+
+  btn.disabled = true; btn.textContent = 'Procesando...';
+  try {
+    await api('POST', '/api/banking/withdrawal', { amount, description: desc || 'Retiro' });
+    await loadAccount();
+    document.getElementById('wit-balance').textContent = fmt(account.balance);
+    document.getElementById('wit-amount').value = '';
+    document.getElementById('wit-desc').value   = '';
+    showFormAlert('wit','ok', `✓ Retiro de ${fmt(amount)} procesado con éxito.`);
+    toast('ok', `Retiro de ${fmt(amount)} registrado`);
+  } catch(e) {
+    showFormAlert('wit','err', e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Confirmar retiro';
+  }
+}
+
+/* ─── Transfer ─── */
+async function loadBanks() {
+  try {
+    banks = await api('GET', '/api/banking/banks');
+    const sel = document.getElementById('tr-bank');
+    sel.innerHTML = banks.map(b =>
+      `<option value="${b.bankCode}">${b.bankCode === BANK.code ? b.bankCode + ' (mismo banco)' : b.bankCode}</option>`
+    ).join('');
+    onBankChange();
+  } catch { }
+}
+
+function onBankChange() {
+  const sel  = document.getElementById('tr-bank').value;
+  const hint = document.getElementById('tr-hint');
+  const inp  = document.getElementById('tr-acct');
+  if (sel === BANK.code) {
+    hint.textContent = 'Transferencia interna — se acredita de inmediato.';
+    inp.placeholder  = `Ej: ${BANK.code}-ACC-000002`;
+  } else {
+    hint.textContent = 'Transferencia interbancaria vía Kafka — se procesa en segundos.';
+    inp.placeholder  = `Ej: ${sel}-ACC-000001`;
+  }
+}
+
+async function doTransfer() {
+  const targetBankCode      = document.getElementById('tr-bank').value;
+  const targetAccountNumber = document.getElementById('tr-acct').value.trim();
+  const amount              = parseFloat(document.getElementById('tr-amount').value);
+  const desc                = document.getElementById('tr-desc').value.trim();
+  const btn                 = document.getElementById('btn-tr');
+
+  hideFormAlerts('tr');
+  if (!targetAccountNumber) { showFormAlert('tr','err','Ingresa el número de cuenta destino.'); return; }
+  if (!amount || amount <= 0){ showFormAlert('tr','err','Ingresa un monto válido mayor a 0.'); return; }
+  if (account && amount > account.balance){ showFormAlert('tr','err','Saldo insuficiente para esta transferencia.'); return; }
+
+  btn.disabled = true; btn.textContent = 'Procesando...';
+  try {
+    await api('POST', '/api/banking/transfer', { targetBankCode, targetAccountNumber, amount, description: desc || 'Transferencia' });
+    await loadAccount();
+    document.getElementById('tr-acct').value   = '';
+    document.getElementById('tr-amount').value = '';
+    document.getElementById('tr-desc').value   = '';
+    showFormAlert('tr','ok', `✓ Transferencia de ${fmt(amount)} enviada a ${targetAccountNumber}.`);
+    toast('ok', `Transferencia de ${fmt(amount)} enviada`);
+  } catch(e) {
+    showFormAlert('tr','err', e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Enviar transferencia';
+  }
+}
+
+/* ─── Helpers: transaction rendering ─── */
+function txHTML(t) {
+  return `
+    <div class="tx-item">
+      <div class="tx-icon" style="background:${txColor(t.type)}">${txSvg(t.type)}</div>
+      <div class="tx-info">
+        <div class="tx-type">${txLabel(t.type)}</div>
+        <div class="tx-desc">${t.description || (t.targetBankCode ? '→ ' + t.targetBankCode : '')}</div>
+      </div>
+      <div class="tx-right">
+        <div class="tx-amount ${isPositive(t.type)?'pos':'neg'}">${isPositive(t.type)?'+':'-'}${fmt(t.amount)}</div>
+        <div class="tx-date">${fmtDate(t.createdAt)}</div>
+        <span class="tx-status st-${t.status}">${statusLabel(t.status)}</span>
+      </div>
+    </div>`;
+}
+
+function txColor(type) {
+  const map = {
+    DEPOSIT:'#059669', WITHDRAWAL:'#dc2626',
+    TRANSFER_OUTGOING:'#d97706', TRANSFER_INCOMING:'#0284c7',
+    TRANSFER_INTERNAL_DEBIT:'#d97706', TRANSFER_INTERNAL_CREDIT:'#0284c7',
+  };
+  return map[type] || '#94a3b8';
+}
+
+function txSvg(type) {
+  const isOut = type === 'WITHDRAWAL' || type === 'TRANSFER_OUTGOING' || type === 'TRANSFER_INTERNAL_DEBIT';
+  const isIn  = type === 'DEPOSIT'    || type === 'TRANSFER_INCOMING'  || type === 'TRANSFER_INTERNAL_CREDIT';
+  if (isIn)  return `<svg viewBox="0 0 24 24" width="17" height="17" stroke="white" fill="none" stroke-width="2.5"><polyline points="17 11 12 6 7 11"/><line x1="12" y1="18" x2="12" y2="6"/></svg>`;
+  if (isOut) return `<svg viewBox="0 0 24 24" width="17" height="17" stroke="white" fill="none" stroke-width="2.5"><polyline points="7 13 12 18 17 13"/><line x1="12" y1="6" x2="12" y2="18"/></svg>`;
+  return `<svg viewBox="0 0 24 24" width="17" height="17" stroke="white" fill="none" stroke-width="2.5"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/></svg>`;
+}
+
+function txLabel(type) {
+  const map = {
+    DEPOSIT:'Depósito recibido', WITHDRAWAL:'Retiro',
+    TRANSFER_OUTGOING:'Transferencia enviada', TRANSFER_INCOMING:'Transferencia recibida',
+    TRANSFER_INTERNAL_DEBIT:'Transferencia interna (débito)', TRANSFER_INTERNAL_CREDIT:'Transferencia interna (crédito)',
+  };
+  return map[type] || type;
+}
+
+function isPositive(type) {
+  return ['DEPOSIT','TRANSFER_INCOMING','TRANSFER_INTERNAL_CREDIT'].includes(type);
+}
+
+function statusLabel(s) {
+  return { COMPLETED:'Completado', PENDING:'Pendiente', FAILED:'Fallido' }[s] || s;
+}
+
+/* ─── Helpers: formatting ─── */
+function fmt(n) {
+  return '$' + Number(n).toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('es-VE', {day:'2-digit', month:'short', year:'numeric'});
+}
+
+/* ─── Helpers: alerts ─── */
+function showFormAlert(prefix, type, msg) {
+  const el = document.getElementById(`${prefix}-${type==='ok'?'ok':'err'}`);
+  el.textContent = msg; el.style.display = 'block';
+}
+
+function hideFormAlerts(prefix) {
+  ['ok','err'].forEach(t => { const el = document.getElementById(`${prefix}-${t}`); if(el) el.style.display='none'; });
+}
+
+function emptyHTML(msg) {
+  return `<div class="empty"><svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg><p>${msg}</p></div>`;
+}
+
+/* ─── Toast ─── */
+let toastTimer;
+function toast(type, msg) {
+  const el = document.getElementById('toast');
+  const icon = type === 'ok'
+    ? `<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>`
+    : `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`;
+  el.innerHTML = icon + msg;
+  el.className = 'show ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = type; }, 3500);
+}
+</script>
+</body>
+</html>

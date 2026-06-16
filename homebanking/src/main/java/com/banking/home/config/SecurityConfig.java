@@ -37,6 +37,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/actuator/**").permitAll()
+                .requestMatchers("/", "/index.html", "/app.html", "/*.css", "/*.js", "/*.ico").permitAll()
                 .anyRequest().authenticated()
             )
             // Agrega el filtro JWT antes del filtro de autenticación estándar

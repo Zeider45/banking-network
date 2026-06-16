@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Home Banking API</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+
+    header {
+      background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%);
+      border-bottom: 1px solid #1e40af;
+      padding: 24px 40px;
+      display: flex; align-items: center; gap: 16px;
+    }
+    header svg { width: 40px; height: 40px; }
+    header h1 { font-size: 1.6rem; font-weight: 700; color: #60a5fa; }
+    header span { font-size: 0.9rem; color: #94a3b8; margin-left: 12px; }
+
+    main { max-width: 900px; margin: 40px auto; padding: 0 24px; }
+
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 28px;
+      margin-bottom: 24px;
+    }
+    .card h2 { font-size: 1.1rem; color: #60a5fa; margin-bottom: 18px; font-weight: 600; }
+
+    .endpoint { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+    .method {
+      font-size: 0.72rem; font-weight: 700; padding: 3px 8px;
+      border-radius: 4px; white-space: nowrap; min-width: 48px; text-align: center;
+    }
+    .GET  { background: #065f46; color: #6ee7b7; }
+    .POST { background: #1e3a8a; color: #93c5fd; }
+    .path { font-family: monospace; font-size: 0.9rem; color: #f8fafc; }
+    .desc { font-size: 0.83rem; color: #94a3b8; margin-top: 2px; width: 100%; padding-left: 60px; }
+
+    .badge {
+      display: inline-block; font-size: 0.7rem; padding: 2px 8px;
+      border-radius: 20px; margin-left: 8px;
+    }
+    .pub  { background: #14532d; color: #86efac; }
+    .priv { background: #3b1f2b; color: #fca5a5; }
+
+    .try-section { margin-top: 8px; }
+    .try-section label { display: block; font-size: 0.82rem; color: #94a3b8; margin-bottom: 4px; margin-top: 12px; }
+    .try-section input, .try-section textarea {
+      width: 100%; background: #0f172a; border: 1px solid #334155;
+      color: #e2e8f0; border-radius: 6px; padding: 8px 12px;
+      font-size: 0.85rem; font-family: monospace;
+    }
+    .try-section textarea { resize: vertical; min-height: 80px; }
+    button {
+      margin-top: 12px; padding: 9px 20px;
+      background: #2563eb; color: white;
+      border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem;
+    }
+    button:hover { background: #1d4ed8; }
+    .response {
+      margin-top: 12px; background: #0f172a; border: 1px solid #334155;
+      border-radius: 6px; padding: 12px; font-family: monospace;
+      font-size: 0.8rem; white-space: pre-wrap; color: #a3e635; min-height: 40px;
+      display: none;
+    }
+
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .info-item { background: #0f172a; border-radius: 8px; padding: 14px; }
+    .info-item .label { font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+    .info-item .value { font-size: 1rem; color: #e2e8f0; margin-top: 4px; font-family: monospace; }
+
+    footer { text-align: center; color: #475569; font-size: 0.8rem; padding: 40px 0 24px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <svg viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="1.5">
+    <path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 10v11M16 10v11M12 10v11"/>
+  </svg>
+  <div>
+    <h1>Home Banking <span id="bankLabel">API</span></h1>
+    <span>Red Bancaria · Spring Boot 3 · JWT</span>
+  </div>
+  <a href="/app.html" style="margin-left:auto;background:#2563eb;color:white;padding:10px 20px;border-radius:8px;font-size:.85rem;font-weight:700;text-decoration:none;white-space:nowrap;display:flex;align-items:center;gap:6px;">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="white" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    Ir al Home Banking
+  </a>
+</header>
+
+<main>
+
+  <!-- Info -->
+  <div class="card">
+    <h2>Información del servicio</h2>
+    <div class="info-grid">
+      <div class="info-item">
+        <div class="label">URL base</div>
+        <div class="value" id="baseUrl">—</div>
+      </div>
+      <div class="info-item">
+        <div class="label">Autenticación</div>
+        <div class="value">Bearer JWT</div>
+      </div>
+      <div class="info-item">
+        <div class="label">Usuario de prueba</div>
+        <div class="value" id="testUser">juan@bank?.com</div>
+      </div>
+      <div class="info-item">
+        <div class="label">Contraseña</div>
+        <div class="value">password123</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Login -->
+  <div class="card">
+    <h2>Autenticación <span class="badge pub">público</span></h2>
+
+    <div class="endpoint">
+      <span class="method POST">POST</span>
+      <span class="path">/api/auth/login</span>
+    </div>
+    <div class="desc">Obtiene un token JWT con email + contraseña + bankCode.</div>
+
+    <div class="try-section">
+      <label>Body</label>
+      <textarea id="loginBody"></textarea>
+      <button onclick="doLogin()">Ejecutar login</button>
+      <div class="response" id="loginResp"></div>
+    </div>
+  </div>
+
+  <!-- Cuenta -->
+  <div class="card">
+    <h2>Cuenta <span class="badge priv">requiere JWT</span></h2>
+
+    <div class="try-section" style="margin-bottom:16px">
+      <label>Token JWT (pegar aquí después del login)</label>
+      <input type="text" id="jwt" placeholder="eyJhbGci..."/>
+    </div>
+
+    <div class="endpoint">
+      <span class="method GET">GET</span>
+      <span class="path">/api/banking/account</span>
+      <div class="desc">Saldo y datos de la cuenta del usuario autenticado.</div>
+    </div>
+    <button onclick="doGet('/api/banking/account', 'accountResp')">Consultar cuenta</button>
+    <div class="response" id="accountResp"></div>
+
+    <div class="endpoint" style="margin-top:20px">
+      <span class="method GET">GET</span>
+      <span class="path">/api/banking/account/history</span>
+      <div class="desc">Historial de movimientos.</div>
+    </div>
+    <button onclick="doGet('/api/banking/account/history', 'historyResp')">Ver historial</button>
+    <div class="response" id="historyResp"></div>
+
+    <div class="endpoint" style="margin-top:20px">
+      <span class="method GET">GET</span>
+      <span class="path">/api/banking/banks</span>
+      <div class="desc">Lista los bancos disponibles en la red.</div>
+    </div>
+    <button onclick="doGet('/api/banking/banks', 'banksResp')">Ver bancos</button>
+    <div class="response" id="banksResp"></div>
+  </div>
+
+  <!-- Operaciones -->
+  <div class="card">
+    <h2>Operaciones <span class="badge priv">requiere JWT</span></h2>
+
+    <div class="endpoint">
+      <span class="method POST">POST</span>
+      <span class="path">/api/banking/deposit</span>
+      <div class="desc">Depositar fondos en la cuenta propia.</div>
+    </div>
+    <div class="try-section">
+      <textarea id="depositBody">{"amount": 500, "description": "Depósito de prueba"}</textarea>
+      <button onclick="doPost('/api/banking/deposit', 'depositBody', 'depositResp')">Depositar</button>
+      <div class="response" id="depositResp"></div>
+    </div>
+
+    <div class="endpoint" style="margin-top:20px">
+      <span class="method POST">POST</span>
+      <span class="path">/api/banking/withdrawal</span>
+      <div class="desc">Retirar fondos de la cuenta propia.</div>
+    </div>
+    <div class="try-section">
+      <textarea id="withdrawalBody">{"amount": 100, "description": "Retiro de prueba"}</textarea>
+      <button onclick="doPost('/api/banking/withdrawal', 'withdrawalBody', 'withdrawalResp')">Retirar</button>
+      <div class="response" id="withdrawalResp"></div>
+    </div>
+
+    <div class="endpoint" style="margin-top:20px">
+      <span class="method POST">POST</span>
+      <span class="path">/api/banking/transfer</span>
+      <div class="desc">Transferir a otro banco (interbancario vía Kafka) o al mismo banco.</div>
+    </div>
+    <div class="try-section">
+      <textarea id="transferBody" style="min-height:100px"></textarea>
+      <button onclick="doPost('/api/banking/transfer', 'transferBody', 'transferResp')">Transferir</button>
+      <div class="response" id="transferResp"></div>
+    </div>
+  </div>
+
+</main>
+
+<footer>Banking Network · Java 21 / Spring Boot 3.3 · Kafka · PostgreSQL / MariaDB</footer>
+
+<script>
+  // Detectar banco por puerto
+  const port = location.port;
+  const bankMap = { '8100': 'BANKA', '8101': 'BANKB', '8102': 'BANKC' };
+  const bank = bankMap[port] || 'BANK?';
+  const bankLower = bank.toLowerCase().replace('bank','bank');
+
+  document.getElementById('bankLabel').textContent = bank;
+  document.getElementById('baseUrl').textContent = location.origin;
+  document.getElementById('testUser').textContent = `juan@${bank.toLowerCase()}.com`;
+
+  document.getElementById('loginBody').value = JSON.stringify({
+    email: `juan@${bank.toLowerCase()}.com`,
+    password: 'password123',
+    bankCode: bank
+  }, null, 2);
+
+  document.getElementById('transferBody').value = JSON.stringify({
+    targetBankCode: bank === 'BANKA' ? 'BANKB' : 'BANKA',
+    targetAccountNumber: bank === 'BANKA' ? 'BANKB-ACC-000001' : 'BANKA-ACC-000001',
+    amount: 100,
+    description: 'Transferencia de prueba'
+  }, null, 2);
+
+  function show(id, data) {
+    const el = document.getElementById(id);
+    el.style.display = 'block';
+    el.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+  }
+
+  async function doLogin() {
+    try {
+      const body = document.getElementById('loginBody').value;
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body
+      });
+      const data = await res.json();
+      show('loginResp', data);
+      if (data.token) {
+        document.getElementById('jwt').value = data.token;
+      }
+    } catch(e) { show('loginResp', 'Error: ' + e.message); }
+  }
+
+  async function doGet(path, respId) {
+    try {
+      const token = document.getElementById('jwt').value.trim();
+      const res = await fetch(path, {
+        headers: token ? { Authorization: 'Bearer ' + token } : {}
+      });
+      show(respId, await res.json());
+    } catch(e) { show(respId, 'Error: ' + e.message); }
+  }
+
+  async function doPost(path, bodyId, respId) {
+    try {
+      const token = document.getElementById('jwt').value.trim();
+      const body = document.getElementById(bodyId).value;
+      const res = await fetch(path, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: 'Bearer ' + token } : {})
+        },
+        body
+      });
+      show(respId, await res.json());
+    } catch(e) { show(respId, 'Error: ' + e.message); }
+  }
+</script>
+</body>
+</html>
