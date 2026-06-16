@@ -30,6 +30,10 @@
     button { cursor: pointer; }
 
     /* ─── SCREENS ─── */
+    /* El atributo `hidden` debe ocultar siempre, incluso sobre reglas de ID
+       como `#screen-app { display:flex }` (de mayor especificidad). Sin este
+       !important, login y app se mostrarían a la vez. */
+    [hidden] { display: none !important; }
     .screen { min-height: 100vh; }
     #screen-app { display: flex; }
 
